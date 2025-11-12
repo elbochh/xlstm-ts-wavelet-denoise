@@ -1,0 +1,49 @@
+# xLSTM-TS: Expanding-Window Sequence Model for Monthly Equity Returns
+
+Leak-free, cluster-aware deep sequence modeling for equity excess returns, combining  
+**LightGBM feature selection**, **wavelet denoising**, and a **direction-aware GMADL loss**.  
+The model trains in **expanding windows**, early-stopping on validation RMSE, and reports  
+both **RMSE** and **directional win-rate** metrics.
+
+---
+
+##  Overview
+
+- Loads pre-computed features (`features_lgbm_ohlcv.parquet`) and cluster labels (`ohlcv_clusters.csv`).
+- Builds next-month targets (`y_ret_next`) by per-ticker shift, enforcing strict temporal alignment.
+- Trains **one model per cluster**, using an **expanding-window backtesting scheme**:
+  - **TRAIN:** all history before `eval_start`
+  - **VALID:** `[eval_start, val_end)`
+  - **TEST:** `[val_end, test_end)`
+  - Windows advance by `TEST_MONTHS`.
+
+Each window performs feature selection, optional denoising, normalization, and sequence generation before training the model.
+
+---
+
+##  Model Architecture: xLSTM-TS
+
+### **Network Components**
+```text
+Input (batch, seq_len, d_in)
+ ├─ Path A: Linear(d_in→d_model) → LSTM(d_model, layers=L, dropout)
+ ├─ Path B: EMAPath(d_in→d_model)  # gated exponentially weighted moving average
+ └─ [A_last || B_last] → LayerNorm(d_model*2)
+     → MLP Head: Linear → GELU → Dropout → Linear(→1)
+
+#### Loss Function: GMADL (Generalized Mean Absolute Directional Loss)
+Smooth absolute error + logistic penalty for wrong-sign predictions
+
+####Why This Matters
+
+This framework demonstrates quantitative deep learning adapted for real financial data:
+
+Leak-free expanding windows → true out-of-sample evaluation.
+
+Wavelet denoising + LightGBM FS → cleaner, adaptive feature sets.
+
+EMA-augmented LSTM → captures both short-term volatility and long-term trends.
+
+GMADL loss → aligns the model’s optimization with directional profitability, not just error magnitude.
+
+Together, these innovations yield a robust, interpretable, and direction-aware sequence model suitable for large-scale equity prediction.
